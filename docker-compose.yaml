@@ -1,0 +1,109 @@
+services:
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: kafka
+    hostname: kafka
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    environment:
+      # KRaft basics
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+
+      # KRaft needs the cluster ID for each cluster. 
+      CLUSTER_ID: mRnv1es_ScC4TCS9C0igMQ
+      
+    
+      # Listeners
+      KAFKA_LISTENERS: PLAINTEXT://kafka:9092,CONTROLLER://kafka:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+
+      # Internal config
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
+
+      # Dev-friendly
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+
+    healthcheck:
+      test: ["CMD", "bash", "-c", "nc -z kafka 9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: app
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  
+  kafka-init:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "-c"]
+    command: |
+      echo "Waiting for Kafka to be ready..." &&
+      sleep 5 &&
+
+      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists \
+        --topic orders.created \
+        --partitions 6 \
+        --replication-factor 1 &&
+
+      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists \
+        --topic payments.completed \
+        --partitions 6 \
+        --replication-factor 1 &&
+
+      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists \
+        --topic inventory.updated \
+        --partitions 6 \
+        --replication-factor 1 &&
+
+      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists \
+        --topic notifications.events \
+        --partitions 3 \
+        --replication-factor 1 &&
+
+      echo "Kafka topics created successfully."
+  
+  order-service:
+    build:
+      context: ./services/order
+      dockerfile: DockerFile
+      additional_contexts:
+        proto: ./build/proto
+    container_name: order-service
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SERVICE_NAME: order-service
+    ports:
+      - "8080:8080"
+
+volumes:
+  kafka-data:

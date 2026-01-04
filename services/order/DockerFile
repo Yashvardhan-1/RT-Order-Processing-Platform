@@ -1,0 +1,34 @@
+# syntax=docker/dockerfile:1.4
+# ---------- build stage ----------
+  FROM --platform=linux/amd64 golang:1.22 AS builder
+
+  WORKDIR /app
+  
+  COPY go.mod ./
+  RUN go mod download
+  RUN go mod tidy
+  # librdkafka deps for confluent-kafka-go
+  RUN apt-get update && apt-get install -y --no-install-recommends \
+      librdkafka-dev pkg-config build-essential && \
+      rm -rf /var/lib/apt/lists/*
+  
+  # copy service source code
+  COPY . ./
+  # copy generated protobufs supplied via an external build context named "proto"
+  COPY --from=proto / ./build/proto
+
+  ENV CGO_ENABLED=1
+  RUN go build -o service
+  
+  # ---------- runtime stage ----------
+  # FROM gcr.io/distroless/base-debian12
+  FROM --platform=linux/amd64 debian:bookworm-slim
+  
+  WORKDIR /app
+  
+  COPY --from=builder /app/service .
+  
+  EXPOSE 8080
+  
+  CMD ["./service"]
+  

@@ -1,0 +1,17 @@
+# Go
+bin/
+*.exe
+*.out
+
+# Build artifacts
+build/
+
+# Environment files
+.env
+
+# OS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
