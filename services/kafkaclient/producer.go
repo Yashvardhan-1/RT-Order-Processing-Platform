@@ -6,13 +6,19 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
-func NewProducer(brokers string) (*kafka.Producer, error) {
+type ProducerConfig struct {
+	Brokers string
+	Idempotent bool
+	TransactionalID string
+}
+
+func NewProducer(config ProducerConfig) (*kafka.Producer, error) {
 	p, err := kafka.NewProducer(&kafka.ConfigMap{
-		"bootstrap.servers": brokers,
+		"bootstrap.servers": config.Brokers,
 
 		// Reliability
 		"acks":                     "all",
-		"enable.idempotence":       true,
+		"enable.idempotence":       config.Idempotent,
 		"retries":                  5,
 		"linger.ms":                5,
 		"max.in.flight.requests.per.connection": 5,

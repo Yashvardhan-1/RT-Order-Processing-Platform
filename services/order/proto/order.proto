@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package order;
 
-option go_package = "order-service/build/proto/order";
+option go_package = "build/proto/order";
 
 message OrderItem {
   string sku = 1;

@@ -86,6 +86,13 @@ services:
         --replication-factor 1 &&
 
       echo "Kafka topics created successfully."
+
+      echo "Waiting for Kafka controller & PID manager..." &&
+      until kafka-broker-api-versions --bootstrap-server kafka:9092 > /dev/null 2>&1; do
+        sleep 1
+      done &&
+
+      echo "Kafka fully ready."
   
   order-service:
     build:
@@ -93,10 +100,13 @@ services:
       dockerfile: DockerFile
       additional_contexts:
         proto: ./build/proto
+        kafkaclient: ./services/kafkaclient
     container_name: order-service
     depends_on:
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
     environment:
@@ -104,6 +114,27 @@ services:
       SERVICE_NAME: order-service
     ports:
       - "8080:8080"
+  
+  payment-service:
+    build:
+      context: ./services/payment
+      dockerfile: DockerFile
+      additional_contexts:
+        proto: ./build/proto
+        kafkaclient: ./services/kafkaclient
+    container_name: payment-service
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SERVICE_NAME: payment-service
+    ports:
+      - "8081:8081"
 
 volumes:
   kafka-data:

@@ -7,11 +7,11 @@ import (
 	"net/http"
 	"os"
 	"time"
+
 	"github.com/google/uuid"
 
-	orderProto "order-service/build/proto/order"
-	"order-service/kafkaclient"
-
+	orderProto "build/proto/order"
+	kafkaclient "kafkaclient"
 )
 
 type CreateOrderRequest struct {
@@ -25,7 +25,12 @@ func main() {
 		log.Fatal("KAFKA_BOOTSTRAP_SERVERS not set")
 	}
 
-	producer, err := kafkaclient.NewProducer(brokers)
+	producer, err := kafkaclient.NewProducer(kafkaclient.ProducerConfig{
+		Brokers: brokers,
+		Idempotent: true,
+		TransactionalID: "order-service",
+	})
+	
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -54,9 +59,11 @@ func main() {
 		err = kafkaclient.Publish(
 			context.Background(),
 			producer,
-			"orders.created",
-			orderID,
-			event,
+			kafkaclient.PublishConfig{
+				Topic: "orders.created",
+				Key: orderID,
+				Value: event,
+			},
 		)
 
 		if err != nil {

@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package payment;
+
+option go_package = "build/proto/payment";
+
+enum PaymentStatus {
+  PAYMENT_STATUS_UNSPECIFIED = 0;
+  PAYMENT_STATUS_SUCCESS = 1;
+  PAYMENT_STATUS_FAILED = 2;
+}
+
+message PaymentCompleted {
+  string order_id = 1;
+  string transaction_id = 2;
+  PaymentStatus status = 3;
+  int64 processed_at = 4;
+}
